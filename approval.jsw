@@ -1,0 +1,24 @@
+import wixData from 'wix-data';
+import { validateToken } from 'backend/security.jsw'; // Assume this exists
+
+export async function processApproval(token, action) {
+    try {
+        const tokenData = await validateToken(token);
+        if (!tokenData.valid) throw new Error("Invalid or expired token");
+
+        const request = await wixData.get("LeaveApplications", tokenData.requestId);
+
+        if (tokenData.actionType === "dhReview") {
+            request.supervisorDecision = action === "support" ? "Supported" : "Not Supported";
+            request.applicationStatus = action === "support" ? "Pending: Principal" : "Complete";
+        } else if (tokenData.actionType === "principalReview") {
+            request.principalDecision = action === "approve" ? "Approved" : "Rejected";
+            request.applicationStatus = "Complete";
+        }
+
+        await wixData.update("LeaveApplications", request);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
