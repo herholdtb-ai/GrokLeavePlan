@@ -1,0 +1,35 @@
+import { getSecret } from 'wix-secrets-backend';
+import sgMail from '@sendgrid/mail';
+
+const SENDER_EMAIL = "info@hsgrabouw.co.za";
+
+/**
+ * Sends a secure email with token-based link.
+ * @param {string} to - Recipient email.
+ * @param {string} subject - Email subject.
+ * @param {string} pagePath - Wix page slug for link (e.g., "approve-request").
+ * @param {string} token - Secure token.
+ * @param {string} buttonText - Button text in email.
+ * @param {string} bodyContent - Additional body text.
+ */
+export async function sendSecureEmail(to, subject, pagePath, token, buttonText, bodyContent = "") {
+    try {
+        const apiKey = await getSecret("SENDGRID_API_KEY");
+        sgMail.setApiKey(apiKey);
+
+        const link = `https://yoursite.com/${pagePath}?token=${token}`;
+
+        const msg = {
+            to,
+            from: SENDER_EMAIL,
+            subject,
+            html: `<p>${bodyContent}</p><a href="${link}"><button>${buttonText}</button></a>`,
+        };
+
+        await sgMail.send(msg);
+        return { success: true };
+    } catch (error) {
+        console.error("SendGrid Error:", error);
+        return { success: false, error: error.message };
+    }
+}
