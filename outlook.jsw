@@ -1,0 +1,39 @@
+import { getSecret } from 'wix-secrets-backend';
+import { fetch } from 'wix-fetch';
+
+const CALENDAR_EMAIL = "skooldagboek@hsgrabouw.co.za";
+
+export async function addToOutlookCalendar(eventData) {
+    try {
+        const clientId = await getSecret("AZURE_CLIENT_ID");
+        const tenantId = await getSecret("AZURE_TENANT_ID");
+        const clientSecret = await getSecret("AZURE_CLIENT_SECRET");
+
+        // Get access token
+        const tokenResponse = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `client_id=${clientId}&scope=https://graph.microsoft.com/.default&client_secret=${clientSecret}&grant_type=client_credentials`
+        });
+        const { access_token } = await tokenResponse.json();
+
+        // Create event
+        const event = {
+            subject: `Leave: ${eventData.applicantName}`,
+            start: { dateTime: eventData.startDate.toISOString(), timeZone: 'UTC' },
+            end: { dateTime: eventData.endDate.toISOString(), timeZone: 'UTC' },
+            body: { contentType: 'text', content: eventData.reason }
+        };
+
+        await fetch(`https://graph.microsoft.com/v1.0/users/${CALENDAR_EMAIL}/calendar/events`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(event)
+        });
+
+        return { success: true };
+    } catch (err) {
+        console.error("Outlook Error:", err);
+        return { success: false };
+    }
+}
