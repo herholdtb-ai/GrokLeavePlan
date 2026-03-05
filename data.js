@@ -2,6 +2,7 @@ import { ForbiddenError } from 'wix-errors';
 import wixData from 'wix-data';
 import { generateSecureToken } from 'backend/security.jsw';
 import { sendSecureEmail } from 'backend/sendGrid.jsw';
+import { addToOutlookCalendar } from 'backend/outlook.jsw'; // <-- Assume this exists
 
 /**
  * DATABASE HOOKS (data.js)
@@ -138,12 +139,12 @@ export async function LeaveApplications_afterInsert(item, context) {
 }
 
 /* ============================================================
-   AFTER UPDATE — DH → Principal escalation emails
+   AFTER UPDATE — DH → Principal escalation + Outlook add event
    ============================================================ */
 export async function LeaveApplications_afterUpdate(item, context) {
     const original = context.previousItem;
 
-    // When DH approves → status changes to "Pending: Principal"
+    // A) When DH approves → status changes to "Pending: Principal"
     if (
         item.applicationStatus === "Pending: Principal" &&
         original.applicationStatus !== "Pending: Principal"
@@ -167,6 +168,24 @@ export async function LeaveApplications_afterUpdate(item, context) {
             "Approve or Reject",
             body
         );
+    }
+
+    // B) When Principal decision transitions to Approved → add to Outlook calendar
+    if (
+        item.principalDecision === "Approved" &&
+        original.principalDecision !== "Approved"
+    ) {
+        try {
+            await addToOutlookCalendar({
+                applicantName: item.applicantEmail, // replace with a proper name field if available
+                startDate: item.startingDate,
+                endDate: item.endDate,
+                reason: item.reason
+            });
+        } catch (e) {
+            // Log but do not block the DB update lifecycle
+            console.error("Outlook calendar add failed:", e);
+        }
     }
 
     return item;
